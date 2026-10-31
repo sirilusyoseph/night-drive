@@ -110,6 +110,26 @@
   @media (max-width: 600px) {
     #controls { display: flex; }
   }
+
+  #fs-btn {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    z-index: 5;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    background: rgba(15,23,42,0.6);
+    color: #fff;
+    font-size: 1.1rem;
+    line-height: 1;
+    box-shadow: none;
+    cursor: pointer;
+  }
+  body.fs-on h1, body.fs-on #hint { display: none; }
+  body.fs-on canvas { max-width: none !important; max-height: none !important; }
 </style>
 </head>
 <body>
@@ -122,6 +142,7 @@
   </div>
   <div id="board-wrap">
     <canvas id="board" width="380" height="440"></canvas>
+    <button id="fs-btn" title="Fullscreen (F)" aria-label="Toggle fullscreen">⛶</button>
     <div id="overlay">
       <h2 id="overlay-title">NIGHT DRIVE</h2>
       <p id="overlay-msg">Arrow keys / WASD: ↑ gas, ↓ brake, ← → steer. Follow the glowing road markers through the dark and dodge oncoming headlights.</p>
@@ -490,6 +511,69 @@
 
   reset();
   draw();
+})();
+</script>
+<script>
+/* Fullscreen: hides the browser UI and enlarges the game to the biggest size
+   that still fits next to the score bar and on-screen controls. */
+(function () {
+  var canvas = document.getElementById('board');
+  var wrap = document.getElementById('board-wrap');
+  var btn = document.getElementById('fs-btn');
+  if (!canvas || !wrap || !btn) return;
+  var root = document.documentElement;
+  function nativeFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  function isFs() { return nativeFs() || document.body.classList.contains('pseudo-fs'); }
+  function px(v) { return parseFloat(v) || 0; }
+
+  function fit() {
+    if (!isFs()) { canvas.style.width = ''; canvas.style.height = ''; return; }
+    var bcs = getComputedStyle(document.body), rcs = getComputedStyle(root), wcs = getComputedStyle(wrap);
+    var others = Array.prototype.filter.call(document.body.children, function (el) {
+      return el !== wrap && el.tagName !== 'SCRIPT' && getComputedStyle(el).display !== 'none';
+    });
+    var used = others.reduce(function (s, el) { return s + el.offsetHeight; }, 0) + px(bcs.rowGap) * others.length;
+    var chromeV = px(bcs.paddingTop) + px(bcs.paddingBottom) + px(rcs.paddingTop) + px(rcs.paddingBottom) +
+                  px(wcs.paddingTop) + px(wcs.paddingBottom) + px(wcs.borderTopWidth) + px(wcs.borderBottomWidth);
+    var chromeH = px(bcs.paddingLeft) + px(bcs.paddingRight) + px(wcs.paddingLeft) + px(wcs.paddingRight) +
+                  px(wcs.borderLeftWidth) + px(wcs.borderRightWidth);
+    var availH = window.innerHeight - used - chromeV - px(bcs.rowGap);
+    var availW = window.innerWidth - chromeH;
+    var s = Math.min(availW / canvas.width, availH / canvas.height);
+    if (!(s > 0.3)) s = 0.3;
+    s = Math.min(s, 4);
+    canvas.style.width = Math.floor(canvas.width * s) + 'px';
+    canvas.style.height = Math.floor(canvas.height * s) + 'px';
+  }
+  function sync() {
+    document.body.classList.toggle('fs-on', isFs());
+    btn.textContent = isFs() ? '\u2715' : '\u26f6';
+    fit();
+    setTimeout(fit, 120);
+  }
+  function pseudoOn() { document.body.classList.add('pseudo-fs'); sync(); }
+  function enter() {
+    var req = root.requestFullscreen || root.webkitRequestFullscreen;
+    if (req) {
+      try { var p = req.call(root); if (p && p.catch) p.catch(pseudoOn); } catch (e) { pseudoOn(); }
+    } else { pseudoOn(); }
+  }
+  function exit() {
+    if (nativeFs()) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); }
+    document.body.classList.remove('pseudo-fs');
+    sync();
+  }
+  function toggle() { if (isFs()) exit(); else enter(); }
+
+  btn.addEventListener('click', toggle);
+  document.addEventListener('fullscreenchange', sync);
+  document.addEventListener('webkitfullscreenchange', sync);
+  window.addEventListener('resize', fit);
+  window.addEventListener('orientationchange', function () { setTimeout(sync, 200); });
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'f' || e.key === 'F') toggle();
+    else if (e.key === 'Escape' && document.body.classList.contains('pseudo-fs')) exit();
+  });
 })();
 </script>
 </body>
